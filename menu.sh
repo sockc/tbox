@@ -46,19 +46,29 @@ script_manage_menu() {
     while true; do
         print_header "脚本管理"
         cat <<'EOF'
- 1. 更新 tbox
- 2. 修复安装
- 3. 查看安装信息
- 4. 卸载 tbox
+ 1. 查看安装信息
+ 2. 检查本地/远程版本
+ 3. 更新 tbox
+ 4. 切换仓库/分支
+ 5. 备份当前安装
+ 6. 查看备份列表
+ 7. 恢复备份
+ 8. 修复安装
+ 9. 卸载 tbox
  0. 返回上一级
 EOF
         echo
         read -r -p "请输入选项: " choice
         case "$choice" in
-            1) update_tbox ;;
-            2) repair_tbox ;;
-            3) show_install_info ;;
-            4) uninstall_tbox ;;
+            1) show_install_info ;;
+            2) check_remote_version ;;
+            3) update_tbox ;;
+            4) switch_tbox_repo_branch_interactive ;;
+            5) backup_current_tbox ;;
+            6) list_tbox_backups ;;
+            7) restore_tbox_backup_interactive ;;
+            8) repair_tbox ;;
+            9) uninstall_tbox ;;
             0) return ;;
             *) warn "无效选项" ;;
         esac
