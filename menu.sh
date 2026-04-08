@@ -25,12 +25,13 @@ show_main_menu() {
  1. 系统工具
  2. Docker 工具
  3. 网络工具
- 4. 防火墙工具
- 5. 代理工具
- 6. 面板工具
- 7. DD/重装工具
- 8. 脚本管理
- 9. 关于项目
+ 4. SSH 工具
+ 5. 防火墙工具
+ 6. 代理工具
+ 7. 面板工具
+ 8. DD/重装工具
+ 9. 脚本管理
+10. 关于项目
 
  0. 退出
 
@@ -73,12 +74,13 @@ main_menu() {
             1) call_module_menu "system" ;;
             2) call_module_menu "docker" ;;
             3) call_module_menu "network" ;;
-            4) call_module_menu "firewall" ;;
-            5) call_module_menu "proxy" ;;
-            6) call_module_menu "panel" ;;
-            7) call_module_menu "dd" ;;
-            8) script_manage_menu ;;
-            9) call_module_menu "about" ;;
+            4) call_module_menu "ssh" ;;
+            5) call_module_menu "firewall" ;;
+            6) call_module_menu "proxy" ;;
+            7) call_module_menu "panel" ;;
+            8) call_module_menu "dd" ;;
+            9) script_manage_menu ;;
+            10) call_module_menu "about" ;;
             0) exit 0 ;;
             *) warn "无效选项"; pause ;;
         esac
