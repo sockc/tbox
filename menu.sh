@@ -30,8 +30,9 @@ show_main_menu() {
  6. 代理工具
  7. 面板工具
  8. DD/重装工具
- 9. 脚本管理
-10. 关于项目
+ 9. 自建脚本集合
+10. 脚本管理
+11. 关于项目
 
  0. 退出
 
@@ -89,8 +90,9 @@ main_menu() {
             6) call_module_menu "proxy" ;;
             7) call_module_menu "panel" ;;
             8) call_module_menu "dd" ;;
-            9) script_manage_menu ;;
-            10) call_module_menu "about" ;;
+            9) call_module_menu "custom" ;;
+            10) script_manage_menu ;;
+            11) call_module_menu "about" ;;
             0) exit 0 ;;
             *) warn "无效选项"; pause ;;
         esac
