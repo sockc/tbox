@@ -1,6 +1,10 @@
 # tbox
 
 一个用于 Linux VPS / 服务器的模块化工具箱脚本。
+一键脚本
+````
+bash <(curl -fsSL https://raw.githubusercontent.com/sockc/tbox/main/install.sh)
+````
 
 ## 特点
 
