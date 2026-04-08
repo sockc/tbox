@@ -6,6 +6,8 @@ TBOX_SSH_OVERRIDE="${SSH_CONF_D}/01-tbox.conf"
 TBOX_SSH_MARK_BEGIN="# >>> TBOX SSH MANAGED BEGIN >>>"
 TBOX_SSH_MARK_END="# <<< TBOX SSH MANAGED END <<<"
 TBOX_SSH_BACKUP_DIR="/etc/tbox/backups/ssh"
+TBOX_SSH_STATE_DIR="/etc/tbox/state"
+TBOX_SSH_PORT_CHANGE_STATE="${TBOX_SSH_STATE_DIR}/ssh_port_change.env"
 
 get_ssh_service_name() {
     if command -v systemctl >/dev/null 2>&1; then
@@ -162,6 +164,105 @@ backup_ssh_config() {
     fi
 
     info "已备份 SSH 配置: $archive"
+}
+
+ensure_ssh_state_dir() {
+    mkdir -p "$TBOX_SSH_STATE_DIR"
+}
+
+record_ssh_port_change() {
+    local old_port="$1"
+    local new_port="$2"
+
+    ensure_ssh_state_dir
+
+    cat > "$TBOX_SSH_PORT_CHANGE_STATE" <<EOF
+OLD_PORT='${old_port}'
+NEW_PORT='${new_port}'
+CHANGED_AT='$(date "+%Y-%m-%d %H:%M:%S")'
+EOF
+    chmod 600 "$TBOX_SSH_PORT_CHANGE_STATE"
+}
+
+clear_ssh_port_change_record() {
+    rm -f "$TBOX_SSH_PORT_CHANGE_STATE"
+}
+
+load_ssh_port_change_record() {
+    [ -f "$TBOX_SSH_PORT_CHANGE_STATE" ] || return 1
+    # shellcheck source=/dev/null
+    . "$TBOX_SSH_PORT_CHANGE_STATE"
+    [ -n "${OLD_PORT:-}" ] && [ -n "${NEW_PORT:-}" ]
+}
+
+get_pending_old_ssh_port() {
+    if load_ssh_port_change_record; then
+        if [ "$(get_ssh_port_raw)" = "${NEW_PORT:-}" ] && [ "${OLD_PORT:-}" != "${NEW_PORT:-}" ]; then
+            echo "$OLD_PORT"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+get_pending_old_ssh_port_text() {
+    local oldp
+    oldp="$(get_pending_old_ssh_port 2>/dev/null || true)"
+    [ -n "${oldp:-}" ] && echo "$oldp" || echo "无"
+}
+
+close_old_ssh_port_firewall_rule() {
+    local old_port
+
+    require_root_action || return 1
+
+    old_port="$(get_pending_old_ssh_port 2>/dev/null || true)"
+    if [ -z "${old_port:-}" ]; then
+        warn "没有待关闭的旧 SSH 端口记录。"
+        return 1
+    fi
+
+    if [ -f "${MODULE_DIR}/firewall.sh" ]; then
+        # shellcheck source=/dev/null
+        source "${MODULE_DIR}/firewall.sh"
+    fi
+
+    if ! declare -F deny_port_backend >/dev/null 2>&1; then
+        error "未找到防火墙模块函数 deny_port_backend，请先确认 modules/firewall.sh 已更新。"
+        return 1
+    fi
+
+    warn "当前 SSH 新端口: $(get_ssh_port_raw)"
+    warn "待关闭的旧端口: ${old_port}"
+    warn "请先确认你已经可以通过新端口正常登录。"
+    read -r -p "确认关闭旧端口 ${old_port}/tcp 的防火墙放行？[y/N]: " ans
+    case "$ans" in
+        y|Y|yes|YES)
+            if deny_port_backend "$old_port" "tcp"; then
+                info "旧 SSH 端口 ${old_port}/tcp 已关闭放行。"
+                clear_ssh_port_change_record
+            else
+                error "关闭旧 SSH 端口放行失败。"
+                return 1
+            fi
+            ;;
+        *)
+            info "已取消。"
+            ;;
+    esac
+}
+
+show_ssh_port_change_record() {
+    if load_ssh_port_change_record; then
+        cat <<EOF
+最近一次 SSH 端口变更记录:
+旧端口   : ${OLD_PORT}
+新端口   : ${NEW_PORT}
+变更时间 : ${CHANGED_AT}
+EOF
+    else
+        echo "最近没有记录到 SSH 端口变更。"
+    fi
 }
 
 strip_managed_block_from_file() {
@@ -354,13 +455,19 @@ apply_managed_ssh_settings() {
 
     rm -rf "$snapdir"
 
+    if [ "$new_port" != "$old_port" ]; then
+        record_ssh_port_change "$old_port" "$new_port"
+    fi
+
     info "SSH 配置已应用。"
     info "当前端口: $(get_ssh_port_raw)"
     info "Root 登录: $(get_root_login_status)"
     info "密码登录: $(get_password_auth_status)"
 
     if [ "$new_port" != "$old_port" ]; then
-        warn "旧端口 ${old_port} 没有自动关闭，请先测试新端口可连接，再决定是否手动关闭旧端口。"
+        warn "旧端口 ${old_port} 没有自动关闭。"
+        warn "请先测试新端口 ${new_port} 可正常连接。"
+        warn "确认正常后，再到 SSH 工具里执行“关闭旧 SSH 端口放行”。"
     fi
 }
 
@@ -583,6 +690,7 @@ ssh_menu() {
  SSH 端口         : $(get_ssh_port)
  Root 登录        : $(get_root_login_status)
  密码登录         : $(get_password_auth_status)
+ 待关旧端口       : $(get_pending_old_ssh_port_text)
 
  1. 查看 SSH 状态摘要
  2. 查看 SSH 配置文件
@@ -594,6 +702,8 @@ ssh_menu() {
  8. 查看 SSH 最近日志
  9. 查看授权公钥
 10. 添加授权公钥
+11. 查看端口变更记录
+12. 关闭旧 SSH 端口放行
  0. 返回上一级
 EOF
         echo
@@ -635,6 +745,12 @@ EOF
                 ;;
             10)
                 add_authorized_key
+                ;;
+            11)
+                show_ssh_port_change_record
+                ;;
+            12)
+                close_old_ssh_port_firewall_rule
                 ;;
             0)
                 return
